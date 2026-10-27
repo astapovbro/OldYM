@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OldYM</string>
+    <string name="ui_001" formatted="false">Моя музыка</string>
+    <string name="ui_002" formatted="false">Поиск</string>
+    <string name="ui_003" formatted="false">Настройки</string>
+    <string name="ui_004" formatted="false">Загрузка…</string>
+    <string name="ui_005" formatted="false">Не получилось</string>
+    <string name="ui_006" formatted="false">Понятно</string>
+    <string name="ui_007" formatted="false">Яндекс Музыка</string>
+    <string name="ui_008" formatted="false">неофициальный ретро-клиент</string>
+    <string name="wave_title">Моя волна</string>
+    <string name="wave_detail">Персональные рекомендации Яндекс Музыки</string>
+    <string name="wave_loaded">Рекомендации для тебя</string>
+    <string name="like_add">♡ Мне нравится</string>
+    <string name="like_remove">♥ В избранном · убрать</string>
+    <string name="like_check">… Проверка избранного</string>
+    <string name="like_working">… Сохраняю</string>
+    <string name="like_added">Добавлено в «Мне нравится»</string>
+    <string name="like_removed">Удалено из «Мне нравится»</string>
+    <string name="like_failed">Не удалось изменить лайк:</string>
+    <string name="ui_009" formatted="false">Мне нравится</string>
+    <string name="ui_010" formatted="false">Треки из твоей коллекции</string>
+    <string name="ui_011" formatted="false">Плейлисты</string>
+    <string name="ui_012" formatted="false">Твои подборки и сохранённые плейлисты</string>
+    <string name="ui_013" formatted="false">Скачанные треки</string>
+    <string name="ui_014" formatted="false">  треков · доступны без интернета</string>
+    <string name="ui_015" formatted="false">Сейчас играет</string>
+    <string name="ui_016" formatted="false">Открыть плеер</string>
+    <string name="ui_017" formatted="false">Войти в аккаунт</string>
+    <string name="ui_018" formatted="false">Вход по коду или токену</string>
+    <string name="ui_019" formatted="false">Управление аккаунтом</string>
+    <string name="ui_020" formatted="false"></string>
+    <string name="ui_021" formatted="false">Свои и сохранённые</string>
+    <string name="ui_022" formatted="false">Плейлист</string>
+    <string name="ui_023" formatted="false"> треков</string>
+    <string name="ui_024" formatted="false">Плейлистов пока нет</string>
+    <string name="ui_025" formatted="false">Скачанных треков пока нет. Открой список музыки и нажми «⋮» возле трека.</string>
+    <string name="ui_026" formatted="false">В этом списке пока нет треков.</string>
+    <string name="ui_027" formatted="false">Перемешать</string>
+    <string name="ui_028" formatted="false">↓ Все</string>
+    <string name="ui_029" formatted="false">Плеер ещё запускается</string>
+    <string name="ui_030" formatted="false">Воспроизвести</string>
+    <string name="ui_031" formatted="false">Удалить скачанный файл</string>
+    <string name="ui_032" formatted="false">Скачать для офлайна</string>
+    <string name="ui_033" formatted="false">Скачать </string>
+    <string name="ui_034" formatted="false"> треков?</string>
+    <string name="ui_035" formatted="false">Потребуется место на карте памяти и интернет. Не закрывай приложение до завершения загрузки.</string>
+    <string name="ui_036" formatted="false">Скачать</string>
+    <string name="ui_037" formatted="false">Отмена</string>
+    <string name="ui_038" formatted="false">Уже в очереди загрузки</string>
+    <string name="ui_039" formatted="false">В очереди: </string>
+    <string name="ui_040" formatted="false">Не удалось сохранить трек</string>
+    <string name="ui_041" formatted="false">Скачано: </string>
+    <string name="ui_042" formatted="false">Выбери трек в избранном, плейлисте или скачанной музыке.</string>
+    <string name="ui_043" formatted="false">↓ Скачать трек</string>
+    <string name="ui_044" formatted="false">Поиск музыки</string>
+    <string name="ui_045" formatted="false">По каталогу Яндекс Музыки</string>
+    <string name="ui_046" formatted="false">Трек или исполнитель</string>
+    <string name="ui_047" formatted="false">Найти</string>
+    <string name="ui_048" formatted="false">Введи название трека или имя исполнителя.</string>
+    <string name="ui_049" formatted="false">Поиск: </string>
+    <string name="ui_050" formatted="false">OldYM 1.0</string>
+    <string name="ui_051" formatted="false">Подтвердить вход на сайте Яндекса</string>
+    <string name="ui_052" formatted="false">Проверить HTTPS</string>
+    <string name="ui_053" formatted="false">Проверка TLS 1.2 и сертификатов</string>
+    <string name="ui_054" formatted="false">TLS 1.2 работает. Сертификат проверен. Ответ сервера: HTTP </string>
+    <string name="ui_055" formatted="false">Подключение</string>
+    <string name="ui_056" formatted="false">ОК</string>
+    <string name="ui_057" formatted="false">Прослушивание без интернета</string>
+    <string name="ui_058" formatted="false">Выйти из аккаунта</string>
+    <string name="ui_059" formatted="false">Удалить сохранённый токен</string>
+    <string name="ui_060" formatted="false">Неофициальное приложение. Не связано с Яндексом.\n\nВход — по коду устройства или OAuth-токену. Пароль вводится только на сайте Яндекса, не в этом приложении. Токен хранится в закрытых данных приложения; на телефоне с root его можно извлечь.\n\nСовременный HTTPS встроен в APK. ПК и сервер-посредник не требуются. Для онлайн-функций нужен интернет и доступ к музыке на твоём аккаунте.\n\nТрек сначала буферизуется целиком, затем играет. Скачивания выполняются по очереди, пока открыто приложение. Офлайн-файлы сохраняются на карте памяти в Android/data/ru.oldym/files/music. Редактирование плейлистов пока не реализовано.\n\nАвтор клиента: Astapov_Bro\n\nTLS: Bouncy Castle 1.86, MIT. API: по документации yandex-music-api (LGPL-3.0).</string>
+    <string name="ui_061" formatted="false">Войти в Яндекс Музыку</string>
+    <string name="ui_062" formatted="false">Войти по коду устройства</string>
+    <string name="ui_063" formatted="false">У меня есть OAuth-токен</string>
+    <string name="ui_064" formatted="false">В ответе нет аккаунта</string>
+    <string name="ui_065" formatted="false">Мой аккаунт</string>
+    <string name="ui_066" formatted="false">Вход выполнен</string>
+    <string name="ui_067" formatted="false">На современном телефоне или компьютере открой страницу Яндекса:</string>
+    <string name="ui_068" formatted="false">Введи этот код и подтверди доступ. Здесь пароль не нужен. Ожидаю подтверждения…</string>
+    <string name="ui_069" formatted="false">Подтверждение входа</string>
+    <string name="ui_070" formatted="false">Открыть сайт</string>
+    <string name="ui_071" formatted="false">Открой адрес на другом устройстве</string>
+    <string name="ui_072" formatted="false">Код истёк. Закрой окно и начни вход заново.</string>
+    <string name="ui_073" formatted="false">Не удалось проверить вход. Попробую ещё раз…</string>
+    <string name="ui_074" formatted="false">Ожидаю подтверждения на сайте Яндекса…</string>
+    <string name="ui_075" formatted="false">Вход не завершён: </string>
+    <string name="ui_076" formatted="false">. Закрой окно и попробуй снова.</string>
+    <string name="ui_077" formatted="false">Вставь OAuth-токен с доступом к Яндекс Музыке. Пароль от аккаунта вводить не нужно. Токен никому не отправляй.</string>
+    <string name="ui_078" formatted="false">Токен Яндекс Музыки</string>
+    <string name="ui_079" formatted="false">Вход по токену</string>
+    <string name="ui_080" formatted="false">Войти</string>
+    <string name="ui_081" formatted="false">Проверь токен: вставь только его значение</string>
+    <string name="ui_082" formatted="false">Остановить плеер</string>
+    <string name="likes_more">Ещё 20 треков</string>
+    <string name="search_more">Загрузить ещё 20 треков</string>
+    <string name="search_loading">Загрузка…</string>
+    <string name="search_end">Больше треков не найдено.</string>
+    <string name="search_duplicates">Эта страница не добавила новых треков.</string>
+    <string name="download_loaded_only">Будут скачаны только уже загруженные строки списка.</string>
+    <string name="crash_title">Журнал предыдущего вылета</string>
+    <string name="crash_copy">Скопировать</string>
+    <string name="ui_083">Вход в аккаунт</string>
+    <string name="ui_084">один раз, дальше сессия входа сохраняется</string>
+    <string name="ui_085">Яндекс Музыка для старых Android</string>
+    <string name="ui_086">Пароль вводить не нужно: клиент получает доступ по коду на другом устройстве, либо вы вставляете готовый токен. Токен хранится только на этом телефоне.</string>
+    <string name="ui_087">Войти по коду устройства</string>
+    <string name="ui_088">Ввести токен вручную</string>
+    <string name="ui_089">Позже — только скачанное</string>
+    <string name="ui_090">Android 2.0+ · неофициальный клиент, нужен аккаунт с подпиской</string>
+</resources>
