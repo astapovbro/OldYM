@@ -228,3 +228,12 @@ Bouncy Castle cryptographic classes are relocated to a separate namespace before
 ## Dependencies and licensing
 
 TLS/cryptography: Bouncy Castle (MIT), certificates: Mozilla/curl (MPL-2.0). API interaction is adapted from the yandex-music-api source (LGPL-3.0), including OAuth Device Flow. Copies of the licenses and links to the sources are included in `licenses/`. The source code of this client is distributed under the GNU LGPL-3.0-or-later. Service names belong to their respective owners.
+
+## Screenshots
+![OldYM — главное меню](screenshots/menu.png)
+![OldYM — экран плеера](screenshots/player.png)
+![OldYM — "Моя волна"](screenshots/myvibe.png)
+![OldYM — результаты поиска](screenshots/search.png)
+
+## Download
+* [GitHub Releases](https://github.com/astapovbro/OldYM/releases/latest)
