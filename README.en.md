@@ -1,5 +1,7 @@
 # OldYM
 
+![OldYM](https://github.com/astapovbro/OldYM/blob/main/img/icon.png)
+
 **Language:** English | [Русский](README.md)
 
 An unofficial Yandex Music client for Android 2.0+. Not affiliated with Yandex.
