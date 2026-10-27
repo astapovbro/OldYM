@@ -227,3 +227,12 @@ java -jar tools/sdk/android-9/lib/apksigner.jar verify --min-sdk-version 5 --ver
 ## Зависимости и права
 
 TLS/криптография: Bouncy Castle (MIT), сертификаты — Mozilla/curl (MPL-2.0). Взаимодействие с API адаптировано по исходникам yandex-music-api (LGPL-3.0), включая OAuth Device Flow. Копии лицензий и ссылки на источники приложены в `licenses/`. Исходники этого клиента распространяются под GNU LGPL-3.0-or-later. Названия сервисов принадлежат их владельцам.
+
+## Скриншоты
+![OldYM — главное меню](screenshots/menu.png)
+![OldYM — экран плеера](screenshots/player.png)
+![OldYM — "Моя волна"](screenshots/myvibe.png)
+![OldYM — результаты поиска](screenshots/search.png)
+
+## Скачать
+* [GitHub Releases](https://github.com/astapovbro/OldYM/releases/latest)
