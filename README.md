@@ -1,6 +1,6 @@
 # OldYM
 
-![OldYM](img/logo.png)
+![OldYM](https://github.com/astapovbro/OldYM/blob/main/img/icon.png)
 
 **Язык:** Русский | [English](README.en.md)
 
