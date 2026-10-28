@@ -1,0 +1,309 @@
+import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.bundling.Jar
+
+plugins { id 'base' }
+
+// Native Gradle tasks for the existing API 5 toolchain. No Android Gradle
+// Plugin is applied: this project deliberately retains aapt + dx + relocation.
+// Source/resources stay in their current directories; applicationId is unchanged.
+def windows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+def python = providers.gradleProperty('python').orElse(windows ? 'py' : 'python3')
+def androidJar = file('tools/api5/android-2.0_r01-linux/android.jar')
+def sdkLib = file('tools/sdk/android-9/lib')
+def cryptoJars = files('tools/bctls.jar', 'tools/bcprov.jar', 'tools/bcutil.jar')
+def androidNs = new groovy.xml.Namespace('http://schemas.android.com/apk/res/android', 'android')
+def manifestSource = file('AndroidManifest.xml')
+def manifestData = { new XmlParser(false, true).parse(manifestSource) }
+def minApi = { (manifestData().'uses-sdk'[0].attribute(androidNs.minSdkVersion) ?: '5') as int }
+def out = { String path -> new File(buildDir, path) }
+def aaptFile = {
+    def explicit = providers.gradleProperty('aapt').orNull ?: System.getenv('AAPT')
+    if (explicit) return file(explicit)
+    if (!windows) return file('tools/sdk/android-9/aapt')
+    def candidates = [file('tools/windows/aapt.exe')]
+    ['ANDROID_SDK_ROOT', 'ANDROID_HOME'].each { env ->
+        if (System.getenv(env)) candidates << new File(System.getenv(env), 'build-tools/28.0.3/aapt.exe')
+    }
+    if (System.getenv('LOCALAPPDATA')) candidates << new File(System.getenv('LOCALAPPDATA'), 'Android/Sdk/build-tools/28.0.3/aapt.exe')
+    def found = candidates.find { it.isFile() }
+    if (!found) throw new GradleException('Install Windows Android SDK Build Tools 28.0.3, or set -Paapt=C:/Android/Sdk/build-tools/28.0.3/aapt.exe')
+    found
+}
+def required = { File f ->
+    if (!f.isFile()) throw new GradleException('Missing required file: ' + f)
+    f
+}
+def preparedManifest = out('generated/manifest/AndroidManifest.xml')
+def generatedR = out('generated/r')
+def unsignedApk = out('unsigned.apk')
+def debugApk = out('outputs/apk/debug/OldYM-debug.apk')
+def releaseUnsigned = out('outputs/apk/release/OldYM-release-unsigned.apk')
+def releaseApk = out('outputs/apk/release/OldYM-release.apk')
+def debugKey = new File(gradle.gradleUserHomeDir, 'oldym/debug.keystore')
+
+tasks.register('checkBuildEnvironment') {
+    group = 'verification'
+    description = 'Check the pinned JDK and the legacy Android tools.'
+    doLast {
+        if (JavaVersion.current() != JavaVersion.VERSION_11) throw new GradleException('Use JDK 11 and set JAVA_HOME to the JDK root (not bin).')
+        [androidJar, new File(sdkLib, 'dx.jar'), new File(sdkLib, 'apksigner.jar'), file('tools/proguard-base.jar'), file('tools/relocate.py')].each { required(it) }
+        cryptoJars.each { required(it) }
+        def nativeTool = required(aaptFile())
+        if (!windows && !nativeTool.canExecute() && !nativeTool.setExecutable(true)) throw new GradleException('Cannot make aapt executable: ' + nativeTool)
+        logger.lifecycle('JDK: ' + System.getProperty('java.home'))
+        logger.lifecycle('aapt: ' + nativeTool)
+    }
+}
+
+tasks.register('prepareAndroidManifest') {
+    dependsOn 'checkBuildEnvironment'
+    inputs.file manifestSource
+    inputs.files fileTree('src') { include '**/*.java' }
+    outputs.file preparedManifest
+    doLast {
+        def factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+        factory.setNamespaceAware(true)
+        factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)
+        def document = factory.newDocumentBuilder().parse(manifestSource)
+        def rootElement = document.documentElement
+        def appPackage = rootElement.getAttribute('package')
+        def qualifiedSources = [] as Set
+        fileTree('src').matching { include '**/*.java' }.each { f ->
+            def match = (f.getText('UTF-8') =~ /(?m)^\s*package\s+([\w.]+)\s*;/)
+            if (match.find()) qualifiedSources << match.group(1) + '.' + f.name.replaceFirst(/\.java$/, '')
+        }
+        def uri = 'http://schemas.android.com/apk/res/android'
+        def elements = document.getElementsByTagName('*')
+        for (int i = 0; i < elements.length; i++) {
+            def component = elements.item(i)
+            if (!(component.tagName in ['application', 'activity', 'activity-alias', 'service', 'receiver', 'provider'])) continue
+            ['name', 'targetActivity', 'backupAgent'].each { attribute ->
+                def old = component.getAttributeNS(uri, attribute)
+                if (old && (!old.contains('.') || old.startsWith('.'))) {
+                    def suffix = old.startsWith('.') ? old.substring(1) : old
+                    def original = appPackage + '.' + suffix
+                    if (!qualifiedSources.contains(original)) {
+                        def candidates = qualifiedSources.findAll { it.endsWith('.' + suffix) }
+                        if (candidates.size() == 1) component.setAttributeNS(uri, 'android:' + attribute, candidates.first())
+                        else throw new GradleException('Cannot resolve manifest component ' + old + '; use a fully qualified name.')
+                    }
+                }
+            }
+        }
+        preparedManifest.parentFile.mkdirs()
+        def transformer = javax.xml.transform.TransformerFactory.newInstance().newTransformer()
+        transformer.setOutputProperty(javax.xml.transform.OutputKeys.ENCODING, 'UTF-8')
+        transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, 'yes')
+        transformer.transform(new javax.xml.transform.dom.DOMSource(document), new javax.xml.transform.stream.StreamResult(preparedManifest))
+    }
+}
+
+tasks.register('generateAndroidResources', Exec) {
+    dependsOn 'prepareAndroidManifest'
+    inputs.files fileTree('res'), fileTree('assets'), preparedManifest, androidJar
+    inputs.files fileTree('src') { include '**/*.java' }
+    outputs.dir generatedR
+    doFirst {
+        delete generatedR
+        generatedR.mkdirs()
+        commandLine aaptFile(), 'package', '-f', '-m', '-J', generatedR, '-M', preparedManifest, '-S', 'res', '-A', 'assets', '-I', androidJar
+    }
+    doLast {
+        def pkg = manifestData().attribute('package').toString()
+        def generated = new File(generatedR, pkg.replace('.', '/') + '/R.java')
+        required(generated)
+        def template = generated.getText('UTF-8')
+        def packages = [] as Set
+        fileTree('src').matching { include '**/*.java' }.each { source ->
+            def match = (source.getText('UTF-8') =~ /(?m)^\s*package\s+([\w.]+)\s*;/)
+            if (match.find()) packages << match.group(1)
+        }
+        packages.findAll { it != pkg }.each { sourcePackage ->
+            def target = new File(generatedR, sourcePackage.replace('.', '/') + '/R.java')
+            target.parentFile.mkdirs()
+            target.setText(template.replace('package ' + pkg + ';', 'package ' + sourcePackage + ';'), 'UTF-8')
+        }
+    }
+}
+
+tasks.register('compileOldymJava', JavaCompile) {
+    dependsOn 'generateAndroidResources'
+    source fileTree('src') { include '**/*.java' }, fileTree(generatedR) { include '**/*.java' }
+    classpath = cryptoJars
+    destinationDirectory.set(out('classes'))
+    sourceCompatibility = '1.7'
+    targetCompatibility = '1.7'
+    options.encoding = 'UTF-8'
+    options.bootstrapClasspath = files(androidJar)
+    options.incremental = false
+}
+
+tasks.register('appJar', Jar) {
+    dependsOn 'compileOldymJava'
+    from out('classes')
+    archiveFileName.set('app.jar')
+    destinationDirectory.set(buildDir)
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+tasks.register('relocateCrypto', Exec) {
+    dependsOn 'appJar'
+    inputs.files out('app.jar'), cryptoJars, file('tools/relocate.py')
+    outputs.files(['app', 'bctls', 'bcprov', 'bcutil'].collect { out(it + '-relocated.jar') })
+    doFirst {
+        def cmd = [python.get()]
+        if (windows && python.get().equalsIgnoreCase('py')) cmd << '-3'
+        commandLine cmd + ['tools/relocate.py']
+    }
+}
+
+tasks.register('shrinkLegacyClasses', JavaExec) {
+    dependsOn 'relocateCrypto'
+    inputs.files(['app', 'bctls', 'bcprov', 'bcutil'].collect { out(it + '-relocated.jar') })
+    inputs.files 'proguard.cfg', 'tools/proguard-base.jar', androidJar
+    outputs.file out('shrunk.jar')
+    classpath = files('tools/proguard-base.jar')
+    mainClass.set('proguard.ProGuard')
+    args '@proguard.cfg'
+    maxHeapSize = '1536m'
+    workingDir projectDir
+}
+
+tasks.register('dexLegacyClasses', JavaExec) {
+    dependsOn 'shrinkLegacyClasses'
+    inputs.files out('shrunk.jar'), manifestSource, new File(sdkLib, 'dx.jar')
+    outputs.file out('classes.dex')
+    classpath = files(new File(sdkLib, 'dx.jar'))
+    mainClass.set('com.android.dx.command.Main')
+    maxHeapSize = '1800m'
+    doFirst {
+        setArgs(['--dex', '--min-sdk-version=' + minApi(), '--output=' + out('classes.dex'), out('shrunk.jar')])
+    }
+}
+
+tasks.register('packageUnsignedApk', Exec) {
+    dependsOn 'dexLegacyClasses'
+    inputs.files preparedManifest, fileTree('res'), fileTree('assets'), out('classes.dex'), androidJar
+    outputs.file unsignedApk
+    doFirst {
+        commandLine aaptFile(), 'package', '-f', '-M', preparedManifest, '-S', 'res', '-A', 'assets', '-I', androidJar, '-F', unsignedApk
+    }
+    doLast { ant.zip(destfile: unsignedApk, update: true) { fileset(dir: buildDir, includes: 'classes.dex') } }
+}
+
+tasks.register('assembleUnsigned') {
+    group = 'build'
+    description = 'Build build/unsigned.apk without a signing key.'
+    dependsOn 'packageUnsignedApk'
+}
+
+tasks.register('createDebugKey', Exec) {
+    dependsOn 'checkBuildEnvironment'
+    outputs.file debugKey
+    onlyIf { !debugKey.exists() }
+    doFirst {
+        debugKey.parentFile.mkdirs()
+        commandLine new File(System.getProperty('java.home'), 'bin/keytool' + (windows ? '.exe' : '')),
+            '-genkeypair', '-storetype', 'JKS', '-keystore', debugKey,
+            '-storepass', 'android', '-keypass', 'android', '-alias', 'androiddebugkey',
+            '-keyalg', 'RSA', '-keysize', '2048', '-sigalg', 'SHA256withRSA', '-validity', '10000',
+            '-dname', 'CN=Android Debug,O=Android,C=US'
+    }
+}
+
+def configureSigner = { JavaExec task, File sourceApk, File outputApk, Closure credentials ->
+    task.classpath = files(new File(sdkLib, 'apksigner.jar'))
+    task.mainClass.set('com.android.apksigner.ApkSignerTool')
+    task.doFirst {
+        outputApk.parentFile.mkdirs()
+        def c = credentials()
+        required(file(c.path))
+        // Password values never appear in command arguments or lifecycle logs.
+        task.environment 'OLDYM_SIGN_STORE_PASSWORD', c.storePassword
+        task.environment 'OLDYM_SIGN_KEY_PASSWORD', c.keyPassword
+        task.setArgs(['sign', '--min-sdk-version', '' + minApi(), '--v1-signing-enabled', 'true', '--v2-signing-enabled', 'false',
+            '--ks', file(c.path), '--ks-key-alias', c.alias, '--ks-pass', 'env:OLDYM_SIGN_STORE_PASSWORD',
+            '--key-pass', 'env:OLDYM_SIGN_KEY_PASSWORD', '--out', outputApk, sourceApk])
+    }
+}
+
+tasks.register('signDebugApk', JavaExec) {
+    dependsOn 'packageUnsignedApk', 'createDebugKey'
+    inputs.files unsignedApk, debugKey, new File(sdkLib, 'apksigner.jar')
+    outputs.file debugApk
+    configureSigner(delegate, unsignedApk, debugApk, { [path: debugKey, alias: 'androiddebugkey', storePassword: 'android', keyPassword: 'android'] })
+}
+
+def signingFile = file('signing.properties')
+def signing = new Properties()
+if (signingFile.exists()) signingFile.withInputStream { signing.load(it) }
+def signingValue = { String property, String env ->
+    providers.gradleProperty(property).orNull ?: System.getenv(env) ?: signing.getProperty(property)
+}
+def releaseKeyPath = { signingValue('oldym.keystore', 'OLDYM_KEYSTORE') }
+def releaseCredentials = {
+    def path = releaseKeyPath()
+    def pass = signingValue('oldym.storePassword', 'OLDYM_KEYSTORE_PASSWORD')
+    def keyPass = signingValue('oldym.keyPassword', 'OLDYM_KEY_PASSWORD') ?: pass
+    if (!path || !pass || !keyPass) throw new GradleException('Set oldym.keystore and signing passwords in ignored signing.properties, environment, or your user Gradle properties. See BUILDING.md.')
+    [path: path, alias: signingValue('oldym.alias', 'OLDYM_KEY_ALIAS') ?: 'oldym', storePassword: pass, keyPassword: keyPass]
+}
+
+tasks.register('copyReleaseUnsigned', Copy) {
+    dependsOn 'packageUnsignedApk'
+    from unsignedApk
+    into releaseUnsigned.parentFile
+    rename { releaseUnsigned.name }
+}
+
+tasks.register('prepareReleaseSigning') {
+    dependsOn 'copyReleaseUnsigned'
+    doLast { delete releaseApk }
+}
+
+tasks.register('signReleaseApk', JavaExec) {
+    dependsOn 'prepareReleaseSigning'
+    onlyIf { releaseKeyPath() != null }
+    // Re-sign every invocation, since credentials may come from the environment.
+    configureSigner(delegate, releaseUnsigned, releaseApk, releaseCredentials)
+}
+
+def verifySignature = { String taskName, String dependency, File apk, Closure enabled ->
+    tasks.register(taskName, JavaExec) {
+        group = 'verification'
+        dependsOn dependency
+        onlyIf { enabled() }
+        classpath = files(new File(sdkLib, 'apksigner.jar'))
+        mainClass.set('com.android.apksigner.ApkSignerTool')
+        doFirst { setArgs(['verify', '--min-sdk-version', '' + minApi(), '--verbose', '--print-certs', apk]) }
+    }
+}
+verifySignature('verifyDebugApk', 'signDebugApk', debugApk, { true })
+verifySignature('verifyReleaseApk', 'signReleaseApk', releaseApk, { releaseKeyPath() != null })
+
+tasks.register('assembleDebug') {
+    group = 'build'
+    description = 'Build and verify a locally debug-signed APK (not a public release).'
+    dependsOn 'verifyDebugApk'
+    doLast { logger.lifecycle('Debug APK: ' + debugApk) }
+}
+
+tasks.register('assembleRelease') {
+    group = 'build'
+    description = 'Build release APK; sign and verify it only when a release key is configured.'
+    dependsOn 'verifyReleaseApk'
+    doLast {
+        logger.lifecycle('Release output directory: ' + releaseUnsigned.parentFile)
+        logger.lifecycle(releaseKeyPath() ? 'Signed APK: OldYM-release.apk' : 'Unsigned APK: OldYM-release-unsigned.apk (configure signing to install)')
+    }
+}
+
+tasks.named('assemble') { dependsOn 'assembleDebug' }
+tasks.named('build') { dependsOn 'assembleDebug' }
+
+tasks.named('wrapper') {
+    gradleVersion = '7.6.4'
+    distributionType = Wrapper.DistributionType.BIN
+    distributionSha256Sum = 'bed1da33cca0f557ab13691c77f38bb67388119e4794d113e051039b80af9bb1'
+}

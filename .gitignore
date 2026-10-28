@@ -1,0 +1,35 @@
+# Gradle and build output
+.gradle/
+/build/
+/out/
+/dist/
+/bin/
+/obj/
+/test/classes/
+*.class
+*.dex
+*.apk
+*.idsig
+
+# Signing material and local secrets
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+*.pk8
+*.pem.key
+.env
+.env.*
+!.env.example
+local.properties
+key.properties
+signing.properties
+
+# Python and editor files
+__pycache__/
+*.py[cod]
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,6 @@
+# Copy to signing.properties (ignored). Do not commit the real file.
+# Windows: use forward slashes, e.g. D:/Keys/oldym-release.jks.
+oldym.keystore=/home/you/.oldym/oldym-release.jks
+oldym.alias=oldym
+oldym.storePassword=REPLACE_LOCALLY
+oldym.keyPassword=REPLACE_LOCALLY

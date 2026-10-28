@@ -1,14 +1,9 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-where py >nul 2>nul
-if errorlevel 1 (
-  echo Install Python 3 with the Python Launcher, and JDK 11.
-  pause
-  exit /b 1
+if "%~1"=="" (
+    call "%~dp0gradlew.bat" assembleDebug
+) else (
+    call "%~dp0gradlew.bat" %*
 )
-py -3 tools\build_portable.py %*
-set "RESULT=%ERRORLEVEL%"
-echo.
-pause
-exit /b %RESULT%
+exit /b %ERRORLEVEL%
