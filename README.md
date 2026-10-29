@@ -13,6 +13,7 @@
 - LG Optimus Me (Android 2.2)
 - LG Optimus Sol (Android 4.0.4)
 - Samsung Galaxy S II (Android 4.0.4)
+- Samsung Galaxy S4 Mini (Android 4.4.2)
 - Honor 7 (Android 5.0.2)
 
 ## Установка и вход
