@@ -83,3 +83,4 @@ TLS/криптография: Bouncy Castle (MIT), сертификаты — Mo
 
 ## Скачать
 * [GitHub Releases](https://github.com/astapovbro/OldYM/releases/latest)
+* [OldMarket](https://oldmarket.xyz/app.php?p=ru.oldym)
