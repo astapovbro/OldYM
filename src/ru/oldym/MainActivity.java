@@ -168,7 +168,6 @@ public class MainActivity extends Activity {
         item(list,"=",getString(R.string.ui_011),getString(R.string.ui_012),new Runnable(){public void run(){loadPlaylists();}});
         int count=0;try{count=Store.all(this).size();}catch(Exception ignored){}
         item(list,"↓",getString(R.string.ui_013),count+getString(R.string.ui_014),new Runnable(){public void run(){offline();}});
-        item(list,"▶",getString(R.string.ui_015),getString(R.string.ui_016),new Runnable(){public void run(){player();}});
         item(list,"•",uid.length()==0?getString(R.string.ui_017):login,uid.length()==0?getString(R.string.ui_018):getString(R.string.ui_019),new Runnable(){public void run(){settings();}});
         TextView foot=text(getString(R.string.ui_020),12,MUTED);foot.setPadding(dp(18),dp(20),dp(18),dp(12));list.addView(foot);
     }
@@ -296,7 +295,7 @@ public class MainActivity extends Activity {
         if(tracks.isEmpty()){note(offline?getString(R.string.ui_025):getString(R.string.ui_026));return;}
         LinearLayout toolbar=row();toolbar.setPadding(dp(8),dp(3),dp(8),dp(3));
         toolbar.addView(button(getString(R.string.ui_027),new Runnable(){public void run(){
-            ArrayList<Api.Track> shuffled=new ArrayList<Api.Track>(visible);Collections.shuffle(shuffled);play(shuffled,0);
+            ArrayList<Api.Track> shuffled=new ArrayList<Api.Track>(visible);Collections.shuffle(shuffled);play(shuffled,0,waveResultsScreen);
         }}),new LinearLayout.LayoutParams(0,dp(43),1));
         if(!offline)toolbar.addView(button(getString(R.string.ui_028),new Runnable(){public void run(){confirmAll();}}),new LinearLayout.LayoutParams(dp(90),dp(43)));
         body.addView(toolbar);
@@ -314,7 +313,7 @@ public class MainActivity extends Activity {
             moreLikes.setVisibility(View.GONE);trackList.addFooterView(moreLikes,null,false);
         }
         trackAdapter=new TrackAdapter(items,offline);trackList.setAdapter(trackAdapter);
-        trackList.setOnItemClickListener(new AdapterView.OnItemClickListener(){public void onItemClick(AdapterView<?> p,View v,int position,long id){if(position<items.size())play(items,position);}});
+        trackList.setOnItemClickListener(new AdapterView.OnItemClickListener(){public void onItemClick(AdapterView<?> p,View v,int position,long id){if(position<items.size())play(items,position,waveResultsScreen);}});
         trackList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener(){public boolean onItemLongClick(AdapterView<?> p,View v,int position,long id){if(position>=items.size())return false;trackMenu(items.get(position),offline);return true;}});
         body.addView(trackList,new LinearLayout.LayoutParams(-1,0,1));
         // Keep all remote track lists paged as the user reaches the end.
@@ -361,7 +360,15 @@ public class MainActivity extends Activity {
             loadCover(holder.track,holder.cover,60);return old;
         }
     }
-    private void play(ArrayList<Api.Track> tracks,int position){if(service==null){toast(getString(R.string.ui_029));return;}service.play(tracks,position);player();}
+    private void play(ArrayList<Api.Track> tracks,int position){play(tracks,position,false);}
+    private void play(ArrayList<Api.Track> tracks,int position,boolean waveQueue){
+        if(service==null){toast(getString(R.string.ui_029));return;}
+        if(waveQueue){
+            String cursor=visible.isEmpty()?tracks.get(tracks.size()-1).id:visible.get(visible.size()-1).id;
+            service.playWave(tracks,position,cursor);
+        }else service.play(tracks,position);
+        player();
+    }
     private void trackMenu(final Api.Track t,final boolean offline){
         String[] options=offline?new String[]{getString(R.string.ui_030),getString(R.string.ui_031)}:new String[]{getString(R.string.ui_030),getString(R.string.ui_032)};
         new AlertDialog.Builder(this).setTitle(t.title).setItems(options,new DialogInterface.OnClickListener(){public void onClick(DialogInterface d,int which){
@@ -399,7 +406,9 @@ public class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);LinearLayout content=column();content.setPadding(dp(18),dp(18),dp(18),dp(14));scroll.addView(content);body.addView(scroll,new LinearLayout.LayoutParams(-1,-1));
         int width=getResources().getDisplayMetrics().widthPixels-dp(36);int art=Math.min(width,dp(250));
         nowCover=new ImageView(this);nowCover.setScaleType(ImageView.ScaleType.CENTER_CROP);nowCover.setBackgroundColor(0xffc8c8c8);nowCover.setImageResource(android.R.drawable.ic_media_play);
-        LinearLayout.LayoutParams artParams=new LinearLayout.LayoutParams(art,art);artParams.gravity=Gravity.CENTER_HORIZONTAL;artParams.bottomMargin=dp(18);content.addView(nowCover,artParams);loadCover(track,nowCover,240);
+        LinearLayout.LayoutParams artParams=new LinearLayout.LayoutParams(art,art);artParams.gravity=Gravity.CENTER_HORIZONTAL;artParams.bottomMargin=dp(18);content.addView(nowCover,artParams);
+        int coverPixels=Math.min(480,Math.max(240,art));
+        loadCover(track,nowCover,coverPixels);
         TextView title=text(track.title,22,INK);bold(title);content.addView(title);content.addView(text(track.artist,18,MUTED));
         likeTrackId=track.id;likeStateKnown=likedIdsLoaded;final String playerTrackId=track.id;
         nowLike=button(likeStateKnown?(likedTrackIds.contains(playerTrackId)?getString(R.string.like_remove):getString(R.string.like_add)):getString(R.string.like_check),new Runnable(){public void run(){toggleCurrentLike();}});
@@ -426,7 +435,7 @@ public class MainActivity extends Activity {
         progress.addView(elapsed);progress.addView(seek,new LinearLayout.LayoutParams(0,dp(40),1));progress.addView(total);content.addView(progress);
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onStartTrackingTouch(SeekBar b){dragging=true;}public void onStopTrackingTouch(SeekBar b){dragging=false;if(service!=null)service.seek(service.duration()*b.getProgress()/1000);}public void onProgressChanged(SeekBar b,int value,boolean user){}});
         LinearLayout controls=row();controls.addView(button("|◀",new Runnable(){public void run(){service.previous();player();}}),new LinearLayout.LayoutParams(0,dp(62),1));
-        nowPlay=button(service.isPlaying()?"❚❚":"▶",new Runnable(){public void run(){service.toggle();}});nowPlay.setTextSize(26);controls.addView(nowPlay,new LinearLayout.LayoutParams(0,dp(62),1));
+        nowPlay=button(service.isPlaying()?"||":"▶",new Runnable(){public void run(){service.toggle();}});nowPlay.setTextSize(26);controls.addView(nowPlay,new LinearLayout.LayoutParams(0,dp(62),1));
         controls.addView(button("▶|",new Runnable(){public void run(){service.next();player();}}),new LinearLayout.LayoutParams(0,dp(62),1));content.addView(controls);
         updatePlayer();
     }
@@ -481,8 +490,10 @@ public class MainActivity extends Activity {
             if(nowCover!=null&&!String.valueOf(nowCover.getTag()).startsWith(current.id+":")){player();return;}
             String status=service.message;
             boolean showBuffer=status!=null&&status.toLowerCase().contains("буферизация");
-            nowStatus.setText(showBuffer?status:"");
-            nowStatus.setVisibility(showBuffer?View.VISIBLE:View.GONE);
+            boolean showWaveInfo=status!=null&&status.toLowerCase().contains("моей волны");
+            boolean showStatus=showBuffer||showWaveInfo;
+            nowStatus.setText(showStatus?status:"");
+            nowStatus.setVisibility(showStatus?View.VISIBLE:View.GONE);
             nowPlay.setText(service.isPlaying()?"||":"▶");int duration=service.duration();elapsed.setText(time(service.position()));total.setText(time(duration>0?duration:current.duration));if(!dragging)seek.setProgress(duration>0?(int)(1000L*service.position()/duration):0);
         }
     }

@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 /** One image worker, a bounded queue and sampled decoding for small Dalvik heaps. */
 final class CoverLoader {
     private static final int CACHE_BYTES = 384 * 1024;
+    private static final int CACHE_VERSION = 2;
     private final Context context;
     private final Handler main = new Handler();
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 20,
@@ -49,7 +50,7 @@ final class CoverLoader {
     void close() { closed = true; cancelPending(); worker.shutdownNow(); trim(); }
 
     private File file(Api.Track track, int size) {
-        return new File(context.getCacheDir(), "art_" + track.key() + "_" + size + ".jpg");
+        return new File(context.getCacheDir(), "art_v" + CACHE_VERSION + "_" + track.key() + "_" + size + ".jpg");
     }
     private static Bitmap decode(File file, int size) {
         BitmapFactory.Options options = new BitmapFactory.Options();
@@ -73,16 +74,23 @@ final class CoverLoader {
         return image;
     }
     private byte[] downloadCover(Api.Track track, int requestedSize, String requestedUrl) throws Exception {
-        int[] sizes = requestedSize >= 200 ? new int[] { requestedSize, 100, 60 }
-            : requestedSize > 60 ? new int[] { requestedSize, 60 }
-            : new int[] { requestedSize };
+        int[] sizes;
+        if (requestedSize >= 200) {
+            // Prefer a high-resolution source for the player, but decode only
+            // the requested size into RAM.
+            sizes = new int[] { 600, 400, 300, requestedSize };
+        } else if (requestedSize > 60) {
+            sizes = new int[] { 160, 120, requestedSize };
+        } else {
+            sizes = new int[] { requestedSize };
+        }
         Exception last = null;
         for (int i = 0; i < sizes.length; i++) {
             String address = sizes[i] == requestedSize ? requestedUrl : track.coverUrl(sizes[i]);
             if (address == null) continue;
             try {
-                // Covers requested by the player are larger than list thumbnails. Allow
-                // a bigger response and fall back to a smaller server image when needed.
+                // The source image may be larger than the final bitmap. It is stored on disk
+                // and decoded with sampling, so the full source is never kept as a Bitmap.
                 return Net.bytes(address, null, null, 1024 * 1024);
             } catch (Exception e) {
                 last = e;
