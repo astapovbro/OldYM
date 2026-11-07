@@ -18,6 +18,7 @@ public class PlayerService extends Service {
     private final LocalBinder binder = new LocalBinder();
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final ExecutorService waveWorker = Executors.newSingleThreadExecutor();
+    private final ExecutorService searchWorker = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler();
     private MediaPlayer player;
     private ArrayList<Api.Track> queue = new ArrayList<Api.Track>();
@@ -30,6 +31,13 @@ public class PlayerService extends Service {
     private int waveSession;
     private String waveCursorId = "";
     private final HashSet<String> waveTrackIds = new HashSet<String>();
+
+    // Search results are paged by the API. Keep the query and last loaded page
+    // so the player can extend its own queue while playback is progressing.
+    private boolean searchQueue, searchLoading, searchFinished, waitingForSearch;
+    private int searchSession, searchPage;
+    private String searchQuery = "";
+    private final HashSet<String> searchTrackIds = new HashSet<String>();
 
     private SystemMediaControls mediaControls;
     private boolean foregroundActive;
@@ -125,26 +133,44 @@ public class PlayerService extends Service {
     }
 
     public void play(ArrayList<Api.Track> items,int position){
-        startQueue(items, position, false, null);
+        startQueue(items, position, false, null, null, 0);
     }
 
     public void playWave(ArrayList<Api.Track> items,int position,String cursorTrackId){
-        startQueue(items, position, true, cursorTrackId);
+        startQueue(items, position, true, cursorTrackId, null, 0);
+    }
+
+    public void playSearch(ArrayList<Api.Track> items,int position,
+                           String query,int loadedPage){
+        if(query == null || query.length() == 0) return;
+        startQueue(items, position, false, null, query, loadedPage);
     }
 
     private void startQueue(ArrayList<Api.Track> items,int position,
-                            boolean fromWave,String cursorTrackId){
+                            boolean fromWave,String cursorTrackId,
+                            String fromSearch,int loadedSearchPage){
         if(items == null || position < 0 || position >= items.size()) return;
         waveSession++;
+        searchSession++;
         waveQueue = fromWave;
         waveLoading = false;
         waveFinished = false;
         waitingForWave = false;
         waveTrackIds.clear();
+        searchQueue = !fromWave && fromSearch != null && fromSearch.length() > 0;
+        searchLoading = false;
+        searchFinished = false;
+        waitingForSearch = false;
+        searchQuery = searchQueue ? fromSearch : "";
+        searchPage = searchQueue ? Math.max(0, loadedSearchPage) : 0;
+        searchTrackIds.clear();
         queue = new ArrayList<Api.Track>(items);
         for(int i = 0; i < queue.size(); i++){
             Api.Track t = queue.get(i);
-            if(t != null && t.id != null) waveTrackIds.add(t.id);
+            if(t != null && t.id != null){
+                waveTrackIds.add(t.id);
+                if(searchQueue) searchTrackIds.add(t.id);
+            }
         }
         waveCursorId = fromWave
             ? (cursorTrackId == null || cursorTrackId.length() == 0
@@ -152,6 +178,7 @@ public class PlayerService extends Service {
             : "";
         index = position;
         load();
+        maybeLoadMoreSearch();
     }
 
     private void release(){
@@ -276,11 +303,17 @@ public class PlayerService extends Service {
             index++;
             load();
             maybeLoadMoreWave();
+            maybeLoadMoreSearch();
         }else if(waveQueue && !waveFinished){
             waitingForWave = true;
             message = "Загружаю продолжение «Моей волны»…";
             notifyChange();
             requestMoreWave();
+        }else if(searchQueue && !searchFinished){
+            waitingForSearch = true;
+            message = "Загружаю продолжение поиска…";
+            notifyChange();
+            requestMoreSearch();
         }else{
             stop();
         }
@@ -298,6 +331,95 @@ public class PlayerService extends Service {
     private void maybeLoadMoreWave(){
         if(waveQueue && !waveFinished && !waveLoading && index >= 0
             && queue.size() - index <= 3) requestMoreWave();
+    }
+
+    private void maybeLoadMoreSearch(){
+        if(searchQueue && !searchFinished && !searchLoading && index >= 0
+            && queue.size() - index <= 3) requestMoreSearch();
+    }
+
+    private void requestMoreSearch(){
+        if(!searchQueue || searchLoading || searchFinished) return;
+        searchLoading = true;
+        final int session = searchSession;
+        final int requestedPage = searchPage + 1;
+        final String query = searchQuery;
+        final String token = getSharedPreferences("account",0)
+            .getString("token", "");
+
+        searchWorker.execute(new Runnable(){
+            public void run(){
+                ArrayList<Api.Track> received = null;
+                Exception failure = null;
+                try{
+                    if(token.length() == 0)
+                        throw new IOException("Сначала войди в аккаунт");
+                    Net.init(getAssets().open("roots.pem"));
+                    received = new Api(token).search(query, requestedPage);
+                }catch(Exception e){failure = e;}
+
+                final ArrayList<Api.Track> tracks = received;
+                final Exception problem = failure;
+                handler.post(new Runnable(){
+                    public void run(){
+                        if(session != searchSession || !searchQueue) return;
+                        searchLoading = false;
+                        if(problem != null){
+                            message = "Не удалось загрузить продолжение поиска";
+                            waitingForSearch = false;
+                            notifyChange();
+                            return;
+                        }
+                        if(tracks == null || tracks.isEmpty()){
+                            searchFinished = true;
+                            finishSearchIfWaiting("Больше результатов поиска нет");
+                            return;
+                        }
+
+                        int added = 0;
+                        for(int i = 0; i < tracks.size(); i++){
+                            Api.Track track = tracks.get(i);
+                            if(track == null || track.id == null || track.id.length() == 0)
+                                continue;
+                            if(searchTrackIds.add(track.id)){
+                                queue.add(track);
+                                added++;
+                            }
+                        }
+                        searchPage = requestedPage;
+                        if(added == 0){
+                            searchFinished = true;
+                            finishSearchIfWaiting("Больше результатов поиска нет");
+                            return;
+                        }
+                        if(waitingForSearch && index + 1 < queue.size()){
+                            waitingForSearch = false;
+                            index++;
+                            load();
+                        }else{
+                            notifyChange();
+                            maybeLoadMoreSearch();
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private void finishSearchIfWaiting(String text){
+        if(waitingForSearch){
+            waitingForSearch = false;
+            loading = false;
+            mediaStopped = true;
+            message = text;
+            release();
+            foregroundActive = false;
+            stopForeground(true);
+            if(mediaControls != null) mediaControls.update(null, false, false);
+            notifyChange();
+        }else{
+            notifyChange();
+        }
     }
 
     private void requestMoreWave(){
@@ -427,10 +549,16 @@ public class PlayerService extends Service {
     public void stop(){
         generation++;
         waveSession++;
+        searchSession++;
         waveQueue = false;
         waveLoading = false;
         waveFinished = true;
         waitingForWave = false;
+        searchQueue = false;
+        searchLoading = false;
+        searchFinished = true;
+        waitingForSearch = false;
+        searchQuery = "";
         loading = false;
         mediaStopped = true;
         release();
@@ -460,9 +588,11 @@ public class PlayerService extends Service {
     public void onDestroy(){
         generation++;
         waveSession++;
+        searchSession++;
         release();
         worker.shutdownNow();
         waveWorker.shutdownNow();
+        searchWorker.shutdownNow();
         if(mediaControls != null){
             mediaControls.stop();
             mediaControls = null;

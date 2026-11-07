@@ -295,7 +295,7 @@ public class MainActivity extends Activity {
         if(tracks.isEmpty()){note(offline?getString(R.string.ui_025):getString(R.string.ui_026));return;}
         LinearLayout toolbar=row();toolbar.setPadding(dp(8),dp(3),dp(8),dp(3));
         toolbar.addView(button(getString(R.string.ui_027),new Runnable(){public void run(){
-            ArrayList<Api.Track> shuffled=new ArrayList<Api.Track>(visible);Collections.shuffle(shuffled);play(shuffled,0,waveResultsScreen);
+            ArrayList<Api.Track> shuffled=new ArrayList<Api.Track>(visible);Collections.shuffle(shuffled);play(shuffled,0,waveResultsScreen,searchResultsScreen);
         }}),new LinearLayout.LayoutParams(0,dp(43),1));
         if(!offline)toolbar.addView(button(getString(R.string.ui_028),new Runnable(){public void run(){confirmAll();}}),new LinearLayout.LayoutParams(dp(90),dp(43)));
         body.addView(toolbar);
@@ -313,7 +313,7 @@ public class MainActivity extends Activity {
             moreLikes.setVisibility(View.GONE);trackList.addFooterView(moreLikes,null,false);
         }
         trackAdapter=new TrackAdapter(items,offline);trackList.setAdapter(trackAdapter);
-        trackList.setOnItemClickListener(new AdapterView.OnItemClickListener(){public void onItemClick(AdapterView<?> p,View v,int position,long id){if(position<items.size())play(items,position,waveResultsScreen);}});
+        trackList.setOnItemClickListener(new AdapterView.OnItemClickListener(){public void onItemClick(AdapterView<?> p,View v,int position,long id){if(position<items.size())play(items,position,waveResultsScreen,searchResultsScreen);}});
         trackList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener(){public boolean onItemLongClick(AdapterView<?> p,View v,int position,long id){if(position>=items.size())return false;trackMenu(items.get(position),offline);return true;}});
         body.addView(trackList,new LinearLayout.LayoutParams(-1,0,1));
         // Keep all remote track lists paged as the user reaches the end.
@@ -360,12 +360,15 @@ public class MainActivity extends Activity {
             loadCover(holder.track,holder.cover,60);return old;
         }
     }
-    private void play(ArrayList<Api.Track> tracks,int position){play(tracks,position,false);}
-    private void play(ArrayList<Api.Track> tracks,int position,boolean waveQueue){
+    private void play(ArrayList<Api.Track> tracks,int position){play(tracks,position,false,false);}
+    private void play(ArrayList<Api.Track> tracks,int position,
+                      boolean waveQueue,boolean searchQueue){
         if(service==null){toast(getString(R.string.ui_029));return;}
         if(waveQueue){
             String cursor=visible.isEmpty()?tracks.get(tracks.size()-1).id:visible.get(visible.size()-1).id;
             service.playWave(tracks,position,cursor);
+        }else if(searchQueue){
+            service.playSearch(tracks,position,query,searchPage);
         }else service.play(tracks,position);
         player();
     }
@@ -505,11 +508,14 @@ public class MainActivity extends Activity {
     private void runSearch(){
         if(!logged())return;if(query.length()==0)return;
         searchPage=0;searchBusy=false;
-        task(new Task(){public Object run()throws Exception{return api().search(query,searchPage);}},new Done(){@SuppressWarnings("unchecked")public void run(Object v){showTracks(getString(R.string.ui_049)+query,(ArrayList<Api.Track>)v,false);}});
+        final String requestedQuery=query;
+        task(new Task(){public Object run()throws Exception{return api().search(requestedQuery,0);}},new Done(){@SuppressWarnings("unchecked")public void run(Object v){showTracks(getString(R.string.ui_049)+requestedQuery,(ArrayList<Api.Track>)v,false);}});
     }
     @SuppressWarnings("unchecked")
     private void loadMoreSearch(){
-        if(searchBusy||query.length()==0||!"tracks".equals(screen)||trackAdapter==null||trackList==null)return;
+        if(searchBusy||query.length()==0||!"tracks".equals(screen)
+            ||!listTitle.equals(getString(R.string.ui_049)+query)
+            ||trackAdapter==null||trackList==null)return;
         if(moreSearch!=null&&!moreSearch.isEnabled())return;
         searchBusy=true;
         if(moreSearch!=null){moreSearch.setEnabled(false);moreSearch.setText(getString(R.string.ui_004));}
